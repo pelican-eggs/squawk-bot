@@ -1,4 +1,5 @@
 import discord
+from discord.ext import tasks
 from github import Github, Auth
 import threading
 import asyncio
@@ -44,7 +45,7 @@ thread_dict = load_thread_dict()
 def create_log_file():
     now = datetime.now()
     timestamp = now.strftime("%Y-%m-%d_%H-%M-%S")
-    log_folder = os.path.join("logs", timestamp)
+    log_folder = os.path.join("logs")
     os.makedirs(log_folder, exist_ok=True)
     log_file = os.path.join(log_folder, f"log_{timestamp}.txt")
     return log_file
@@ -121,6 +122,22 @@ async def monitor_github(exit_event):
 
         await asyncio.sleep(GITHUB_FETCH_INTERVAL_TIME) 
 
+@tasks.loop(seconds=GITHUB_FETCH_INTERVAL_TIME)  # Adjust the interval as needed
+async def update_activity():
+    open_issues = 0
+    open_pull_requests = 0
+
+    for thread_info in thread_dict.values():
+        if thread_info["is_pull_request"]:
+            open_pull_requests += 1
+        else:
+            open_issues += 1
+
+    activity = discord.Activity(type=discord.ActivityType.watching, name=f"{open_issues} open issues and {open_pull_requests} open pull requests")
+    await client.change_presence(activity=activity)
+
+# Start the task
+
 # Function to gracefully shutdown the bot
 def shutdown_bot(exit_event):
     while True:
@@ -137,6 +154,7 @@ async def on_ready():
     print(f'Logged in as {client.user} (ID: {client.user.id})')
     log(f'Logged in as {client.user} (ID: {client.user.id})')    
     exit_event = threading.Event()
+    update_activity.start()
     monitor_task = asyncio.create_task(monitor_github(exit_event))  # Run monitor_github as a task
     shutdown_thread = threading.Thread(target=shutdown_bot, args=(exit_event,))
     shutdown_thread.start()
