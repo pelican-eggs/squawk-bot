@@ -1,0 +1,6 @@
+discord
+github
+threading
+PyGithub
+wheel
+python-dotenv
